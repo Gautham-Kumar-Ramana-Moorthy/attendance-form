@@ -30,25 +30,29 @@
   <form id="attendance-form">
     <input type="text" name="Full Name" placeholder="Full Name" required>
     <input type="text" name="Student Number" placeholder="Student Number" required>
-    <input type="email" name="University Email" placeholder="University Email Address" required>
+    <input type="email" name="University Email" placeholder="University Email Address" 
+           required pattern="^[a-zA-Z0-9._%+-]+@tue\.nl$" 
+           title="Only @tue.nl email addresses are allowed">
     
     <input type="hidden" name="Latitude" id="latitude">
     <input type="hidden" name="Longitude" id="longitude">
 
     <div id="status"></div>
 
-    <button type="submit">Submit Attendance</button>
+    <button type="submit" id="submit-btn">Submit Attendance</button>
   </form>
 
   <script>
     const form = document.getElementById('attendance-form');
     const statusDiv = document.getElementById('status');
+    const submitBtn = document.getElementById('submit-btn');
+
     const classroomLat = 51.435699462891;
     const classroomLng = 5.4840998649597;
     const radiusMeters = 50;
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371e3; // metres
+      const R = 6371e3; // meters
       const φ1 = lat1 * Math.PI / 180;
       const φ2 = lat2 * Math.PI / 180;
       const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -57,8 +61,7 @@
                 Math.cos(φ1) * Math.cos(φ2) *
                 Math.sin(Δλ/2) * Math.sin(Δλ/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const d = R * c;
-      return d;
+      return R * c;
     }
 
     function checkLocationAndEnableSubmit(position) {
@@ -71,18 +74,22 @@
 
       if (distance <= radiusMeters) {
         statusDiv.innerHTML = `<span style='color: green;'>You are within range (${Math.round(distance)}m). You may submit attendance.</span>`;
+        submitBtn.disabled = false;
       } else {
         statusDiv.innerHTML = `<span style='color: red;'>You are too far from the classroom (${Math.round(distance)}m). Attendance not allowed.</span>`;
-        form.querySelector('button').disabled = true;
+        submitBtn.disabled = true;
       }
     }
 
     function showError(error) {
       statusDiv.innerHTML = '<span style="color: red;">Unable to get your location. Please allow GPS access and refresh.</span>';
+      submitBtn.disabled = true;
     }
 
+    // Fetch user location
     navigator.geolocation.getCurrentPosition(checkLocationAndEnableSubmit, showError);
 
+    // Submit form data to Apps Script endpoint
     form.addEventListener('submit', async function(event) {
       event.preventDefault();
 
@@ -90,8 +97,8 @@
       const data = {};
       formData.forEach((value, key) => data[key] = value);
 
-      // TODO: Replace with your Google Apps Script endpoint URL
-      const endpoint = ' https://script.google.com/macros/s/AKfycbzqLDJpO4157eABU-OD8u70dV8Iz6TylB79bi61o4ghZ1mAbgL-b-wNQTiE2XEJN8-Qhw/exec';
+      // Replace with your actual Google Apps Script Web App URL:
+      const endpoint = 'https://script.google.com/macros/s/AKfycbzqLDJpO4157eABU-OD8u70dV8Iz6TylB79bi61o4ghZ1mAbgL-b-wNQTiE2XEJN8-Qhw/exec';
 
       try {
         const response = await fetch(endpoint, {
@@ -100,6 +107,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
+
         form.innerHTML = '<p style="color: green;">Attendance submitted successfully!</p>';
       } catch (err) {
         form.innerHTML = '<p style="color: red;">Failed to submit attendance. Try again later.</p>';
@@ -108,3 +116,4 @@
   </script>
 </body>
 </html>
+
