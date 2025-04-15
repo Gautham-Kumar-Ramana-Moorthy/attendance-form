@@ -30,33 +30,27 @@
   <form id="attendance-form">
     <input type="text" name="Full Name" placeholder="Full Name" required>
     <input type="text" name="Student Number" placeholder="Student Number" required>
-    <input type="email" name="University Email" placeholder="University Email Address" required>
+    <input type="email" name="University Email" id="email" placeholder="University Email Address" required>
     
     <input type="hidden" name="Latitude" id="latitude">
     <input type="hidden" name="Longitude" id="longitude">
-    <input type="hidden" name="Device Fingerprint" id="device-fingerprint">
-    <div id="status"></div>
+    <input type="hidden" name="IP Address" id="ipAddress">
+    <input type="hidden" name="Timestamp" id="timestamp">
 
+    <div id="status"></div>
     <button type="submit">Submit Attendance</button>
   </form>
 
-  <script src="https://cdn.jsdelivr.net/npm/fingerprintjs2@2.1.0/dist/fingerprint2.min.js"></script>
   <script>
     const form = document.getElementById('attendance-form');
     const statusDiv = document.getElementById('status');
     const classroomLat = 51.435699462891;
     const classroomLng = 5.4840998649597;
     const radiusMeters = 50;
-
-    // Function to generate a unique device fingerprint
-    function generateFingerprint() {
-      new Fingerprint2().get(function(result) {
-        document.getElementById('device-fingerprint').value = result;
-      });
-    }
+    const submissionKey = 'attendance_submitted';
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371e3; // metres
+      const R = 6371e3;
       const φ1 = lat1 * Math.PI / 180;
       const φ2 = lat2 * Math.PI / 180;
       const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -65,8 +59,7 @@
                 Math.cos(φ1) * Math.cos(φ2) *
                 Math.sin(Δλ/2) * Math.sin(Δλ/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const d = R * c;
-      return d;
+      return R * c;
     }
 
     function checkLocationAndEnableSubmit(position) {
@@ -76,6 +69,7 @@
 
       document.getElementById('latitude').value = lat;
       document.getElementById('longitude').value = lng;
+      document.getElementById('timestamp').value = new Date().toISOString();
 
       if (distance <= radiusMeters) {
         statusDiv.innerHTML = `<span style='color: green;'>You are within range (${Math.round(distance)}m). You may submit attendance.</span>`;
@@ -85,35 +79,53 @@
       }
     }
 
-    function showError(error) {
-      statusDiv.innerHTML = '<span style="color: red;">Unable to get your location. Please allow GPS access and refresh.</span>';
+    function showError() {
+      statusDiv.innerHTML = '<span style="color: red;">Unable to get your location. Please allow GPS access and refresh the page.</span>';
+      form.querySelector('button').disabled = true;
     }
 
     navigator.geolocation.getCurrentPosition(checkLocationAndEnableSubmit, showError);
 
-    // Generate and add the device fingerprint when the page loads
-    generateFingerprint();
+    // Get IP address from ipify.org
+    fetch("https://api.ipify.org?format=json")
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('ipAddress').value = data.ip;
+      });
 
     form.addEventListener('submit', async function(event) {
       event.preventDefault();
+
+      // Block duplicate submissions per device
+      if (localStorage.getItem(submissionKey)) {
+        statusDiv.innerHTML = '<span style="color: red;">You have already submitted attendance from this device.</span>';
+        return;
+      }
+
+      // Restrict email domain
+      const email = document.getElementById('email').value;
+      if (!email.endsWith('@tue.nl')) {
+        statusDiv.innerHTML = '<span style="color: red;">Please use your @tue.nl university email address.</span>';
+        return;
+      }
 
       const formData = new FormData(form);
       const data = {};
       formData.forEach((value, key) => data[key] = value);
 
-      // TODO: Replace with your Google Apps Script endpoint URL
       const endpoint = 'https://script.google.com/macros/s/AKfycbzqLDJpO4157eABU-OD8u70dV8Iz6TylB79bi61o4ghZ1mAbgL-b-wNQTiE2XEJN8-Qhw/exec';
 
       try {
-        const response = await fetch(endpoint, {
+        await fetch(endpoint, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
+        localStorage.setItem(submissionKey, 'true');
         form.innerHTML = '<p style="color: green;">Attendance submitted successfully!</p>';
       } catch (err) {
-        form.innerHTML = '<p style="color: red;">Failed to submit attendance. Try again later.</p>';
+        form.innerHTML = '<p style="color: red;">Failed to submit attendance. Please try again later.</p>';
       }
     });
   </script>
