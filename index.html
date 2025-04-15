@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Location-Based Attendance Form</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>Class Attendance</h2>
+  <form id="attendance-form">
+    <input type="text" name="Full Name" placeholder="Full Name" required>
+    <input type="text" name="Student Number" placeholder="Student Number" required>
+    <input type="email" name="University Email" placeholder="University Email Address" required>
+    
+    <input type="hidden" name="Latitude" id="latitude">
+    <input type="hidden" name="Longitude" id="longitude">
+
+    <div id="status"></div>
+
+    <button type="submit">Submit Attendance</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('attendance-form');
+    const statusDiv = document.getElementById('status');
+    const classroomLat = 51.435699462891;
+    const classroomLng = 5.4840998649597;
+    const radiusMeters = 50;
+
+    function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // metres
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const d = R * c;
+      return d;
+    }
+
+    function checkLocationAndEnableSubmit(position) {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const distance = getDistanceFromLatLonInMeters(lat, lng, classroomLat, classroomLng);
+
+      document.getElementById('latitude').value = lat;
+      document.getElementById('longitude').value = lng;
+
+      if (distance <= radiusMeters) {
+        statusDiv.innerHTML = `<span style='color: green;'>You are within range (${Math.round(distance)}m). You may submit attendance.</span>`;
+      } else {
+        statusDiv.innerHTML = `<span style='color: red;'>You are too far from the classroom (${Math.round(distance)}m). Attendance not allowed.</span>`;
+        form.querySelector('button').disabled = true;
+      }
+    }
+
+    function showError(error) {
+      statusDiv.innerHTML = '<span style="color: red;">Unable to get your location. Please allow GPS access and refresh.</span>';
+    }
+
+    navigator.geolocation.getCurrentPosition(checkLocationAndEnableSubmit, showError);
+
+    form.addEventListener('submit', async function(event) {
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      const data = {};
+      formData.forEach((value, key) => data[key] = value);
+
+      // TODO: Replace with your Google Apps Script endpoint URL
+      const endpoint = ' https://script.google.com/macros/s/AKfycbzqLDJpO4157eABU-OD8u70dV8Iz6TylB79bi61o4ghZ1mAbgL-b-wNQTiE2XEJN8-Qhw/exec';
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        form.innerHTML = '<p style="color: green;">Attendance submitted successfully!</p>';
+      } catch (err) {
+        form.innerHTML = '<p style="color: red;">Failed to submit attendance. Try again later.</p>';
+      }
+    });
+  </script>
+</body>
+</html>
