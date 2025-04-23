@@ -29,38 +29,37 @@
   <h2>Class Attendance</h2>
   <form id="attendance-form">
     <input type="text" name="Full Name" placeholder="Full Name" required>
-    <input type="text" name="Student Number" placeholder="Student Number" required>
+    <input type="text" name="Student Number" placeholder="Student Number" required pattern="\d+">
     <input type="email" name="University Email" id="email" placeholder="University Email Address" required>
-    
+    <input type="number" name="Group Number" placeholder="Group Number (1–28)" required min="1" max="28">
+
     <input type="hidden" name="Latitude" id="latitude">
     <input type="hidden" name="Longitude" id="longitude">
     <input type="hidden" name="IP Address" id="ipAddress">
     <input type="hidden" name="Timestamp" id="timestamp">
 
-    <!-- Consent message -->
     <p style="font-size: 0.9em; color: #333; margin-top: 15px; line-height: 1.5;">
       By scanning the QR code and submitting the attendance form, you hereby consent to the collection of the following required data for the purpose of recording participation/attendance percentages:
-      <strong>Full name, Student ID, Email address, Current location</strong>.
+      <strong>Full name, Student ID, Email address, Group number, Current location</strong>.
       <br><br>
       Your geographical location is captured solely at the moment of form submission and is not tracked or recorded thereafter.
     </p>
 
-    <!-- Consent checkbox -->
     <label style="font-size: 0.9em; display: block; margin-top: 15px;">
       <input type="checkbox" id="consentCheckbox" required>
       I confirm that I have submitted the consent form and agree to the data collection terms.
     </label>
 
-    <div id="status"></div>
+    <div id="status" style="margin-top: 10px;"></div>
     <button type="submit">Submit Attendance</button>
   </form>
 
   <script>
     const form = document.getElementById('attendance-form');
     const statusDiv = document.getElementById('status');
-    const classroomLat = 51.448315;
-    const classroomLng = 5.4861592;
-    const radiusMeters = 10000;
+    const classroomLat = 51.435699462891;
+    const classroomLng = 5.4840998649597;
+    const radiusMeters = 500;
     const submissionKey = 'attendance_submitted';
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
@@ -100,7 +99,6 @@
 
     navigator.geolocation.getCurrentPosition(checkLocationAndEnableSubmit, showError);
 
-    // Get IP address from ipify.org
     fetch("https://api.ipify.org?format=json")
       .then(res => res.json())
       .then(data => {
@@ -110,22 +108,18 @@
     form.addEventListener('submit', async function(event) {
       event.preventDefault();
 
-      // Block duplicate submissions per device
       if (localStorage.getItem(submissionKey)) {
         statusDiv.innerHTML = '<span style="color: red;">You have already submitted attendance from this device.</span>';
         return;
       }
 
-      // Restrict email domain
       const email = document.getElementById('email').value;
       if (!email.endsWith('@student.tue.nl')) {
         statusDiv.innerHTML = '<span style="color: red;">Please use your @student.tue.nl university email address.</span>';
         return;
       }
 
-      // Confirm consent checkbox is checked
-      const consentCheckbox = document.getElementById('consentCheckbox');
-      if (!consentCheckbox.checked) {
+      if (!document.getElementById('consentCheckbox').checked) {
         statusDiv.innerHTML = '<span style="color: red;">Please agree to the data collection terms before submitting.</span>';
         return;
       }
@@ -137,16 +131,30 @@
       const endpoint = 'https://script.google.com/macros/s/AKfycbzqLDJpO4157eABU-OD8u70dV8Iz6TylB79bi61o4ghZ1mAbgL-b-wNQTiE2XEJN8-Qhw/exec';
 
       try {
-        await fetch(endpoint, {
+        const response = await fetch(endpoint, {
           method: 'POST',
-          mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
-        localStorage.setItem(submissionKey, 'true');
-        form.innerHTML = '<p style="color: green;">Attendance submitted successfully!</p>';
+
+        const result = await response.json();
+
+        if (result.result === "success") {
+          localStorage.setItem(submissionKey, 'true');
+          form.innerHTML = '<p style="color: green;">✅ Attendance submitted successfully!</p>';
+        } else if (result.result === "duplicate") {
+          statusDiv.innerHTML = '<span style="color: orange;">⚠️ You have already submitted attendance.</span>';
+        } else if (result.result === "invalid_student") {
+          statusDiv.innerHTML = '<span style="color: red;">❌ Student number is not on the list.</span>';
+        } else if (result.result === "invalid_group") {
+          statusDiv.innerHTML = '<span style="color: red;">❌ Group number must be between 1 and 28.</span>';
+        } else {
+          statusDiv.innerHTML = '<span style="color: red;">❌ Something went wrong. Please try again later.</span>';
+        }
+
       } catch (err) {
-        form.innerHTML = '<p style="color: red;">Failed to submit attendance. Please try again later.</p>';
+        console.error(err);
+        statusDiv.innerHTML = '<span style="color: red;">❌ Failed to submit attendance. Check your connection and try again.</span>';
       }
     });
   </script>
