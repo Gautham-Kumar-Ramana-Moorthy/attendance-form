@@ -146,10 +146,8 @@
           statusDiv.innerHTML = '<span style="color: orange;">⚠️ You have already submitted attendance.</span>';
         } else if (result.result === "invalid_student") {
           statusDiv.innerHTML = '<span style="color: red;">❌ Student number is not on the list.</span>';
-        } else if (result.result === "invalid_group") {
+        } else  (result.result === "invalid_group") {
           statusDiv.innerHTML = '<span style="color: red;">❌ Group number must be between 1 and 28.</span>';
-        } else {
-          statusDiv.innerHTML = '<span style="color: red;">❌ Something went wrong. Please try again later.</span>';
         }
 
       } catch (err) {
