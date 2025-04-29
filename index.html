@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Location-Based Attendance Form</title>
+  <title>Lecture 2 Attendance Form</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
@@ -20,9 +20,6 @@
       border-radius: 5px;
       border: 1px solid #ccc;
     }
-    .hidden {
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -32,13 +29,11 @@
     <input type="text" name="Student Number" placeholder="Student Number" required>
     <input type="email" name="University Email" id="email" placeholder="University Email Address" required>
     <input type="number" name="Group Number" id="groupNumber" placeholder="Group Number (1 - 28)" required min="1" max="28">
-
     <input type="hidden" name="Latitude" id="latitude">
     <input type="hidden" name="Longitude" id="longitude">
     <input type="hidden" name="IP Address" id="ipAddress">
     <input type="hidden" name="Timestamp" id="timestamp">
 
-    <!-- Consent message -->
     <p style="font-size: 0.9em; color: #333; margin-top: 15px; line-height: 1.5;">
       By scanning the QR code and submitting the attendance form, you hereby consent to the collection of the following required data for the purpose of recording participation/attendance percentages:
       <strong>Full name, Student ID, Email address, Current location</strong>.
@@ -46,7 +41,6 @@
       Your geographical location is captured solely at the moment of form submission and is not tracked or recorded thereafter.
     </p>
 
-    <!-- Consent checkbox -->
     <label style="font-size: 0.9em; display: block; margin-top: 15px;">
       <input type="checkbox" id="consentCheckbox" required>
       I confirm that I have submitted the consent form and agree to the data collection terms.
@@ -57,12 +51,13 @@
   </form>
 
   <script>
+    const RESTRICT_SUBMISSION = true; // <-- Toggle to false for unrestricted version
     const form = document.getElementById('attendance-form');
     const statusDiv = document.getElementById('status');
     const classroomLat = 51.4479165;
     const classroomLng = 5.4843461;
-    const radiusMeters = 1000;
-    const submissionKey = 'attendance_submitted';
+    const radiusMeters = 100;
+    const todayKey = 'attendance_submitted_' + new Date().toISOString().split('T')[0];
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
@@ -70,10 +65,8 @@
       const φ2 = lat2 * Math.PI / 180;
       const Δφ = (lat2 - lat1) * Math.PI / 180;
       const Δλ = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ/2) * Math.sin(Δλ/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const a = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
 
@@ -101,71 +94,42 @@
 
     navigator.geolocation.getCurrentPosition(checkLocationAndEnableSubmit, showError);
 
-    // Get IP address from ipify.org
     fetch("https://api.ipify.org?format=json")
       .then(res => res.json())
-      .then(data => {
-        document.getElementById('ipAddress').value = data.ip;
-      });
+      .then(data => document.getElementById('ipAddress').value = data.ip);
 
     form.addEventListener('submit', async function(event) {
       event.preventDefault();
 
-      // Block duplicate submissions per device
-      if (localStorage.getItem(submissionKey)) {
-        statusDiv.innerHTML = '<span style="color: red;">You have already submitted attendance from this device.</span>';
+      if (RESTRICT_SUBMISSION && localStorage.getItem(todayKey)) {
+        statusDiv.innerHTML = '<span style="color: red;">You have already submitted attendance today from this device.</span>';
         return;
       }
 
-      // Restrict email domain
       const email = document.getElementById('email').value;
       if (!email.endsWith('@student.tue.nl')) {
         statusDiv.innerHTML = '<span style="color: red;">Please use your @student.tue.nl university email address.</span>';
         return;
       }
-       // Restrict Group Number field
+
       const groupNumber = parseInt(document.getElementById('groupNumber').value);
       if (isNaN(groupNumber) || groupNumber < 1 || groupNumber > 28) {
-      statusDiv.innerHTML = '<span style="color: red;">Group Number must be a whole number between 1 and 28.</span>';
-      return;
-      }
-       const validStudentNumbers = [
-        2031876, 1899279, 1854410, 1996177, 1941925, 1921983, 1661272, 1957244, 1932330, 
-        1902636, 1944533, 2047063, 2055937, 1993909, 1951963, 2049163, 1947702, 2011891,
-        1901621, 1870300, 1890557, 1948016, 1810448, 1936840, 1922300, 2005174, 1873741,
-        2005476, 1872419, 2040638, 1953389, 2044641, 2026317, 1839985, 1926632, 2037203,
-        1931725, 2011751, 1568175, 2027798, 1862081, 1929380, 1981811, 1694405, 2040999,
-        2025086, 2038315, 2068397, 2031965, 1862146, 1814265, 1938444, 1354434, 1984705,
-        1971050, 1986104, 1927094, 1929739, 1880357, 2057093, 2038994, 1995049, 1959018,
-        1975102, 2270501, 1825240, 2051532, 1963627, 1840223, 1956663, 2046598, 2022281,
-        2023792, 1924303, 1947370, 2029243, 1953230, 1974629, 2056313, 2039044, 1785133,
-        2045206, 2046725, 1980297, 1982362, 2021005, 2051397, 2042762, 1974475, 2050005,
-        2041901, 1954512, 2013258, 1977415, 1967010, 1873911, 1936247, 2021374, 1953567,
-        1801880, 1947745, 2026023, 2036231, 2046857, 2052407, 1933825, 1980432, 1958410,
-        1926020, 1932381, 2059851, 2054000, 2044102, 1436430, 1590685, 1937340, 1789112,
-        1976885, 2036355, 1955969, 1951629, 2034263, 1986147, 1922769, 1918419, 2012790,
-        1760424, 2047071, 1779869, 1990926, 1991086, 2041677, 2009684, 1895680, 1723081,
-        1819704, 2056232, 1947680, 1944401, 2034808, 1938649, 2037904, 2002612, 1785192,
-        1988786, 1543520, 1962701, 2005492, 1671197, 2048582, 2052687, 1979264, 1973231,
-        2009463, 1747126, 1529501, 1888072, 1978012, 2015080, 2032155, 2057719, 1644440,
-        2018691, 2052695, 1998692, 1661345, 1779516, 1989499, 2053861, 2026325, 2027976
-       ];
-
-     // Validate student number
-     const studentNumber = document.querySelector('input[name="Student Number"]').value;
-     if (!validStudentNumbers.includes(parseInt(studentNumber))) {
-      statusDiv.innerHTML = '<span style="color: red;">Invalid student number. Please enter a valid student number.</span>';
-      return;
+        statusDiv.innerHTML = '<span style="color: red;">Group Number must be a number between 1 and 28.</span>';
+        return;
       }
 
-      // Confirm consent checkbox is checked
-      const consentCheckbox = document.getElementById('consentCheckbox');
-      if (!consentCheckbox.checked) {
+      const validStudentNumbers = [/* your full list goes here */];
+      const studentNumber = parseInt(document.querySelector('input[name="Student Number"]').value);
+      if (!validStudentNumbers.includes(studentNumber)) {
+        statusDiv.innerHTML = '<span style="color: red;">Invalid student number.</span>';
+        return;
+      }
+
+      if (!document.getElementById('consentCheckbox').checked) {
         statusDiv.innerHTML = '<span style="color: red;">Please agree to the data collection terms before submitting.</span>';
         return;
       }
 
-      
       const formData = new FormData(form);
       const data = {};
       formData.forEach((value, key) => data[key] = value);
@@ -179,7 +143,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
-        localStorage.setItem(submissionKey, 'true');
+        if (RESTRICT_SUBMISSION) localStorage.setItem(todayKey, 'true');
         form.innerHTML = '<p style="color: green;">Attendance submitted successfully!</p>';
       } catch (err) {
         form.innerHTML = '<p style="color: red;">Failed to submit attendance. Please try again later.</p>';
@@ -187,4 +151,4 @@
     });
   </script>
 </body>
-</html> 
+</html>
